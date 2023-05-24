@@ -1,5 +1,3 @@
-# bot.py
-
 #import statements, we use os, discord, and dotenv
 import os
 import discord
@@ -28,96 +26,35 @@ complete_dictionary_of_emojis = {}
 list_of_videos = []
 combined_dictionary = Counter()
 
+list_of_unique_foods = []
+
 dictionary_of_every_message = {}
+
+words_blacklist = set()
+
 #we access the client as well as any permissions we intend to give it
-#client = discord.Client(intents = intents)
+client = discord.Client(intents = intents)
+
+
+def remove_occurrences(s: str, part: str) -> str:
+    while (s.find(part) != -1):
+        i = s.index(part)
+        e = i + len(part)
+        s = s[:i] + s[e:]
+    return s
 
 #event that occurs on bot startup
 @bot.event
 async def on_ready():
+    GUILD = "jiayou emoji"
+    print(GUILD)
     guild = discord.utils.get(bot.guilds, name=GUILD)
-    print(
-        f'{bot.user} is connected to the following guild:\n'
-        f'{guild.name}(id: {guild.id})'
-    )
     members = '\n - '.join([member.name for member in guild.members])
     print(f'Guild Members:\n - {members}')
 
     youtube_indicator = "/youtu.be/"
     youtube_indicator2 = ".youtube."
 
-    #populate our dictionary with every word thats ever been said
-    for member in guild.members:
-        member_dictionary = Counter()
-        member_emoji_dictionary = Counter()
-        message_list = []
-        for channel in guild.text_channels:
-            async for message in channel.history(limit=None):
-                if message.author.name == member.name:
-                    message_list.append(message.content)
-
-                    mini_array = message.content.split(' ')
-                    for word in mini_array:
-                        word = word.lower()
-                        #populate our list of youtube videos
-                        for i in range(len(mini_array)):
-                            if youtube_indicator in mini_array[i] or youtube_indicator2 in mini_array[i]:
-                                list_of_videos.append(mini_array[i])
-                        #record popular words
-                        if word not in member_dictionary:
-                            member_dictionary[word] = 0
-                            #populate that emoji dictionary
-                            if emoji.distinct_emoji_list(word):
-                                member_emoji_dictionary[word] = 0
-                        member_dictionary[word] = member_dictionary[word] + 1
-
-                        if word not in combined_dictionary:
-                            combined_dictionary[word] = 0
-                        combined_dictionary[word] = combined_dictionary[word] + 1
-
-                        #populating an emoji dictionary
-                        if emoji.distinct_emoji_list(word):
-                            member_emoji_dictionary[word] = member_emoji_dictionary[word] + 1
-
-        complete_dictionary[member.name] = member_dictionary
-        complete_dictionary_of_emojis[member.name] = member_emoji_dictionary
-        dictionary_of_every_message[member.name] = message_list
-
-#help command to tell us what we can do
-@bot.command()
-async def helpme(ctx):
-    await ctx.send("Here's what I can do right now! \n"
-             + "1. $commonwords---See what words or emojis people use most often! Takes parameters username, "
-                + "integer for number of words to look for, and a True or False if you want to filter common words."
-             + "\n2. $recommend---Take a random youtube video that has been posted before and recommends" +
-             " it back to you; no parameters"
-             + "\n3. $commonemojis--same as common words but emojis only"
-               + "\n4. $talkto-- You've all been simulated in AI! Takes parameters"
-                 + " username, followed by a string of your message; you will get a response"
-                   + " based on the person you input!"
-                     + "\n5. $foodfind--scours dining hall menu for when a food returns;"
-                       + " since its currently break, the menus are empty. dont try this one.")
-
-@bot.command()
-async def talkto(ctx, member: discord.Member, input_string):
-    random_num = random.randint(0,30)
-    if(random_num < 7):
-        message_list = dictionary_of_every_message[member.name]
-        final_string = ""
-        max_int = 0
-        for message in message_list:
-            similarity = fuzz.token_set_ratio(message, input_string)
-            if(similarity > max_int):
-                max_int = similarity
-                final_string = message
-        await ctx.send(final_string)
-    else:
-        message_list = list(complete_dictionary_of_emojis[member.name])
-        random_num = random.randint(0, len(message_list) - 1)
-        await ctx.send(message_list[random_num])
-
-@bot.command()
-async def foodfind(ctx, foodname="Cherry cheesecake tart"):
     class FoodType:
         name = ""
         protein = 0
@@ -225,21 +162,161 @@ async def foodfind(ctx, foodname="Cherry cheesecake tart"):
             list_of_foods[i].appearance_dates = appearances
             appearances = []
 
-    list_of_unique_foods = []
     for obj in list_of_foods:
         if obj.appearance_dates:
             list_of_unique_foods.append(obj)
 
+    print(list_of_unique_foods)
+
     # because list of foods was already sorted we dont need to sort list of unique foods
     # unless we'd like to sort by something else like protein or date
 
+    file1 = open('common.txt', 'r')
+    Lines = file1.readlines()
+    for line in Lines:
+        line = line[:-1]
+        words_blacklist.add(line)
+    words_blacklist.add("")
+
+    for member in guild.members:
+        complete_dictionary[member.name] = Counter()
+        complete_dictionary_of_emojis[member.name] = Counter()
+        dictionary_of_every_message[member.name] = []
+
+    count = 0
+    for channel in guild.text_channels:
+        try:
+            async for message in channel.history(limit=None):
+                count += 1
+                author = message.author.name
+                if(count % 1000 == 0):
+                    print(count)
+                dictionary_of_every_message[author].append(message.content)
+
+                mini_array = message.content.split(' ')
+                for word in mini_array:
+                    word = word.lower()
+                    # populate our list of youtube videos
+                    for i in range(len(mini_array)):
+                        if youtube_indicator in mini_array[i] or youtube_indicator2 in mini_array[i]:
+                            list_of_videos.append(mini_array[i])
+
+                    if word not in combined_dictionary:
+                        combined_dictionary[word] = 0
+                    combined_dictionary[word] = combined_dictionary[word] + 1
+                    # record popular words
+                    if word not in complete_dictionary[author]:
+                        complete_dictionary[author][word] = 0
+                        # populate that emoji dictionary
+                        if emoji.distinct_emoji_list(word):
+                            complete_dictionary_of_emojis[author][word] = 0
+
+                    complete_dictionary[author][word] = complete_dictionary[author][word] + 1
+
+                    # populating an emoji dictionary
+                    if emoji.distinct_emoji_list(word):
+                        complete_dictionary_of_emojis[author][word] = complete_dictionary_of_emojis[author][word] + 1
+        except:
+            continue
+    print("the process is complete")
+
+
+
+#help command to tell us what we can do
+@bot.command()
+async def helpme(ctx):
+    await ctx.send("Here's what I can do right now! \n"
+             + "1. $commonwords---See what words or emojis people use most often! Takes parameters username, "
+                + "integer for number of words to look for, and a True or False if you want to filter common words."
+             + "\n2. $recommend---Take a random youtube video that has been posted before and recommends" +
+             " it back to you; no parameters"
+             + "\n3. $commonemojis--same as common words but emojis only"
+               + "\n4. $talkto-- You've all been simulated in AI! Takes parameters"
+                 + " username, followed by a string of your message; you will get a response"
+                   + " based on the person you input!"
+                     + "\n5. $foodfind--scours dining hall menu for when a food returns;"
+                       + " simply input the food you are looking for and I will try my best to find it")
+
+@bot.command()
+async def talkto(ctx, member: discord.Member, input_string):
+
+    random_num = random.randint(0,30)
+    if(random_num > 7):
+        message_list = dictionary_of_every_message[member.name]
+        final_string = ""
+        max_int = 0
+        words_blacklist_list = list(words_blacklist)
+
+        #if the input string is greater than 30, we'll filter out any common words
+        if (len(input_string) > 30):
+            for word in words_blacklist_list:
+                if word in input_string:
+                    input_string = remove_occurrences(input_string, word)
+                if(input_string <= 30):
+                    break
+        for message in message_list:
+            if(len(message) > 4):
+                similarity = fuzz.token_set_ratio(message, input_string)
+                if(similarity > max_int):
+                    max_int = similarity
+                    final_string = message
+
+        await ctx.send(final_string)
+    else:
+        message_list = []
+        member_emoji_dictionary = complete_dictionary_of_emojis[member.name]
+        for value in member_emoji_dictionary:
+            for i in range(member_emoji_dictionary[value]):
+                message_list.append(value)
+        random_num = random.randint(0, len(message_list) - 1)
+        await ctx.send(message_list[random_num])
+
+@bot.command()
+async def foodfind(ctx, foodname="Cherry cheesecake tart"):
+
+    foodname = foodname.lower()
+
     def earliest_appearance(food_name):
+        max_int = 0
+        food_match = ""
+        return_string = ""
+
+        array_food_string = foodname.split()
+
+
+        foods_with_word_in_common = []
         for food in list_of_unique_foods:
-            if food.name == food_name:
-                return "The food you selected will return on " + food.appearance_dates[0]
+            food.name = food.name.lower()
+            array_select_string = food.name.split("_")
+            print(array_select_string)
+            for word in array_select_string:
+                if word in array_food_string:
+                    print("anything being selected")
+                    foods_with_word_in_common.append(food)
+                    break
 
+        for food in foods_with_word_in_common:
+            similarity = fuzz.token_set_ratio(food_name, food.name)
+            if(similarity > max_int):
+                max_int = similarity
+                food_match = food
 
-        return "This food does not appear in our projected range."
+        if(True):
+            food_match.name = food_match.name.lower()
+            food_match.name = food_match.name.replace("_", " ")
+
+            return_string = food_match.name + " will return on " + food_match.appearance_dates[0]
+            if(food_match.dining_hall != ""):
+                return_string += " at " + food_match.dining_hall
+            if(food_match.meal != ""):
+                meal_repeats = return_string.split()
+                if("for" not in meal_repeats):
+                    return_string += " for " + food_match.meal
+            # if(protein):
+            #     return_string += " with a protein content of " + food_match.protein
+        else:
+            return_string = "The food you selected was not found in our database."
+        return return_string
 
     await ctx.send(earliest_appearance(foodname))
 
@@ -248,18 +325,6 @@ async def foodfind(ctx, foodname="Cherry cheesecake tart"):
 #how many words to look up, and whether to filter out common words
 @bot.command()
 async def commonwords(ctx, member: discord.Member, amount: int = 10, is_filtered: bool = False):
-    words_blacklist = {"", "the", "of", "and", "a", "to", "in", "is", "you", "that",
-                       "it", "he", "was", "for", "on", "are", "as", "with", "his",
-                       "they", "i", "at", "be", "this", "have", "from", "or", "one",
-                       "had", "by", "word", "but", "not", "what", "all", "were", "we",
-                       "when", "your", "can", "said", "there", "use", "an", "each",
-                       "which", "she", "do", "how", "their", "if", "will", "up", "other",
-                       "about", "out", "many", "then", "them", "these", "so", "some",
-                       "her", "would", "make", "like", "him", "into", "time", "has",
-                       "look", "two", "more", "write", "go", "see", "number", "no",
-                       "way", "could", "people", "my", "than", "first", "water", "been",
-                       "call", "who", "oil", "its", "now", "find", "long", "down", "day",
-                       "did", "get", "come", "made", "may", "part"}
 
     member_words = complete_dictionary[member.name]
     return_list = member_words.most_common(amount + len(words_blacklist))
@@ -318,105 +383,49 @@ async def recommend(ctx):
 @bot.event
 async def on_message(message):
     cont = message.content.lower()
+    run_once = False
+
     if("cool" in cont or "crazy" in cont or "insane" in cont or "nice" in cont):
-        await message.channel.send("Thanks!")
-
-    elif("broken" in cont):
-        await message.channel.send("stfu im not broken")
-
+        if(not run_once):
+            await message.channel.send("Thanks!")
+            run_once = True
 
     elif("cock" in cont or "balls" in cont or "cum" in cont or "penis" in cont or "dick" in cont):
         emoji = '🤨'
-        await message.add_reaction(emoji)
-        await message.channel.send("I'm so happy to be acquainted with these normal individuals")
-
-    #generic alonzo reactions
-    Alonzo_Reactions = ['ayo', 'nic', 'nb', 'p good']
-    if message.author.name == 'azz the orangutan 🦧':
-        if any(react in message.content for react in Alonzo_Reactions):
-            await message.channel.send("@Alonzo#7717 lmao what a bot")
-
-    #call lillian a meatball about once every 10 messages
-    if message.author.name == 'lil the sloth 🦥':
-        random_num = random.randint(0,10)
-        if random_num == 5:
-            emoji = '\N{FALAFEL}'
+        if(not run_once):
             await message.add_reaction(emoji)
+            await message.channel.send("I'm so happy to be acquainted with these normal individuals")
+            run_once = True
 
-    c = message.author.name
+
+    c = message.author.nick
     if c == 'chan the deer 🦌' or c == 'loser virgin' or c == 'biology loser' or c == 'Groomer' or \
-            c == 'stfu chen':
-        message = message.lower()
-        if "virgin" in message.content or "virginity" in message.content or "VIRIGN" in message.content:
-            await message.channel.send("@Chanbanana#2492 no u")
-            await message.author.edit(nick="loser virgin")
-        elif "cs" in message.content or "CS" in message.content or "comp sci" in message.content:
-            await message.channel.send("@Chanbanana#2492 How can you be in a major comprised of 80%"
-                                       + " women yet have no bitches to speak of?")
-            await message.author.edit(nick="biology loser")
-        elif "bitches" in message.content or "BITCHES" in message.content:
-            await message.channel.send("@Chanbanana#2492 Stuy freshmen dont count as bitches 💀")
-            await message.author.edit(nick="Groomer")
-        elif "codes" in message.content or "code" in message.content or "free time" in message.content:
-            await message.channel.send("@Chanbanana#2492 my remaining free time is spent engaged in"
-                                       + " fruitful coitus interruptus with your mother")
-            await message.author.edit(nick="stfu chen")
-        else:
-            rand_num = random.randint(0,5)
-            if rand_num == 3:
-                await message.author.edit(nick="chan the deer 🦌")
-
-        if message.author.name == 'kanwar the duck 🦆' or message.author.name == 'indain person':
-            rand_num = random.randint(0,5)
-            if rand_num == 3:
-                await message.channel.send("@ksingh1#8258 ok kanwar")
-                await message.author.edit(nick="indain person")
-            elif rand_num == 1:
-                await message.author.edit(nick="kanwar the duck 🦆")
-
-        if message.author.name == 'lil the sloth 🦥':
-            rand_num = random.randint(0, 5)
-            if rand_num == 3:
-                await message.channel.send("dont kill me haven't you heard of freedom of speech")
-            elif rand_num == 4:
-                await message.channel.send("Because people don't have wings, they look for ways to fly")
-
-
-        if message.author.name == 'kelly the penguin 🐧' or message.author.name == 'jelly the penguin 🐧':
-            rand_num = random.randint(0,5)
-            if rand_num == 3:
-                await message.channel.send("@skeai#7165 bakugo titties")
-                await message.author.edit(nick="jelly the penguin 🐧")
-            elif rand_num == 1:
-                await message.author.edit(nick="kelly the penguin 🐧")
-
-        if message.author.name == 'jiamu the horse🐴' or message.author.name == 'bocchi the cock'\
-                or message.author.name == 'USER BANNED FOR SWEARING':
-            rand_num = random.randint(0,5)
-            if ("shit" in cont or "fuck" in cont or "ass" in cont):
-                await message.author.edit(nick="USER BANNED FOR SWEARING")
-            if rand_num == 3:
-                await message.channel.send("its not about the magic, its about the gathering.")
-                await message.author.edit(nick="bocchi the cock")
-            elif rand_num == 1:
-                await message.author.edit(nick="jiamu the horse🐴")
-
-        if message.author.name == 'kai the bear 🐻' or message.author.name == 'tyrone':
-            rand_num = random.randint(0, 5)
-            if rand_num == 3:
-                await message.channel.send("@LinK#9361 2ND BIGGEST CAT IVE EVER SEEN")
-                await message.author.edit(nick="tyrone")
-            elif rand_num == 1:
-                await message.author.edit(nick="kai the bear 🐻")
-
-        if message.author.name == 'azz the orangutan 🦧' or message.author.name == 'bot':
-            rand_num = random.randint(0, 5)
-            if rand_num == 3:
-                await message.channel.send("ayoooo")
-                await message.author.edit(nick="bot")
-            elif rand_num == 1:
-                await message.author.edit(nick="azz the orangutan 🦧")
+            c == 'Chanbanana':
+        if(not run_once):
+            if "virgin" in message.content or "virginity" in message.content or "VIRGIN" in message.content:
+                await message.channel.send("@Chanbanana#2492 no u")
+                await message.author.edit(nick="loser virgin")
+            elif "cs" in message.content or "CS" in message.content or "comp sci" in message.content:
+                await message.channel.send("@Chanbanana#2492 How can you be in a major comprised of 80%"
+                                           + " women yet have no bitches to speak of?")
+                await message.author.edit(nick="biology loser")
+            elif "bitches" in message.content or "BITCHES" in message.content:
+                await message.channel.send("@Chanbanana#2492 Stuy freshmen dont count as bitches 💀")
+                await message.author.edit(nick="Groomer")
+            elif "codes" in message.content or "code" in message.content or "free time" in message.content:
+                await message.channel.send("@Chanbanana#2492 my remaining free time is spent engaged in"
+                                           + " fruitful coitus interruptus with your mother")
+                await message.author.edit(nick="stfu chen")
+            else:
+                rand_num = random.randint(0,20)
+                if rand_num < 10:
+                    await message.author.edit(nick="chan the deer 🦌")
+            run_once = True
 
     await bot.process_commands(message)
 
+@bot.event
+async def speakForMe(ctx):
+    await message.channel.send("wow lillian you are extremely funny")
 bot.run(TOKEN)
+
